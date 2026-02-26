@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "DbHelperConsoleApp": {
+      "commandName": "Project",
+      "workingDirectory": "."
+    }
+  }
+}
