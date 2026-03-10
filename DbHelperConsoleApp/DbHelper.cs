@@ -11,9 +11,9 @@ public static class DbHelper
 
     // --- מתודות עבור התלמידים (פרמטר יחיד, ללא הגנה מהזרקות) ---
 
-    public static List<T> RunSelect<T>(string sql) where T : new()
+    public static List<T> RunSelect<T>(string selectSql) where T : new()
     {
-        return RunSelect<T>(sql, null);
+        return RunSelect<T>(selectSql, null);
     }
 
     public static int RunSqlChange(string sql)
@@ -23,13 +23,13 @@ public static class DbHelper
 
     // --- מתודות מוגנות (תומכות בתבנית עם {} ופרמטרים מופרדים) ---
 
-    public static List<T> RunSelect<T>(string sql, params object[] args) where T : new()
+    public static List<T> RunSelect<T>(string selectSql, params object[] args) where T : new()
     {
         var list = new List<T>();
         using (var connection = new SqliteConnection(ConnectionString))
         {
             connection.Open();
-            using var command = CreateCommand(connection, sql, args);
+            using var command = CreateCommand(connection, selectSql, args);
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
