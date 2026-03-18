@@ -7,7 +7,17 @@ using Microsoft.Data.Sqlite;
 
 public static class DbHelper
 {
-    public static string ConnectionString { get; set; } = "Data Source=school.db";
+    public static string ConnectionString { get; set; } = "Data Source=database.db";
+
+    static DbHelper()
+    {
+        using var connection = new SqliteConnection(ConnectionString);
+        connection.Open();
+
+        using var command = connection.CreateCommand();
+        command.CommandText = "PRAGMA journal_mode=WAL;";
+        command.ExecuteNonQuery();
+    }
 
     // --- מתודות עבור התלמידים (פרמטר יחיד, ללא הגנה מהזרקות) ---
 

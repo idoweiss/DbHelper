@@ -364,3 +364,9 @@ FodyWeavers.xsd
 /DbHelperConsoleApp/test_school.db
 /DbHelperConsoleApp/User.cs
 /DbHelperConsoleApp/test_database.db
+
+# SQLite temporary files
+*.db-wal
+*.db-shm
+*.db
+
