@@ -7,23 +7,15 @@ using Microsoft.Data.Sqlite;
 
 public static class DbHelper
 {
-    public static string ConnectionString { get; set; } = "Data Source=database.db";
+    public static string ConnectionString { get; set; } =
+        "Data Source=database.db";
 
-    static DbHelper()
+    // --- מתודות עבור התלמידים ---
+    // פרמטר יחיד
+    // ללא הגנה מהזרקות 
+    public static List<T> RunSelect<T>(string sql) where T : new()
     {
-        using var connection = new SqliteConnection(ConnectionString);
-        connection.Open();
-
-        using var command = connection.CreateCommand();
-        command.CommandText = "PRAGMA journal_mode=WAL;";
-        command.ExecuteNonQuery();
-    }
-
-    // --- מתודות עבור התלמידים (פרמטר יחיד, ללא הגנה מהזרקות) ---
-
-    public static List<T> RunSelect<T>(string selectSql) where T : new()
-    {
-        return RunSelect<T>(selectSql, null);
+        return RunSelect<T>(sql, null);
     }
 
     public static int RunSqlChange(string sql)
@@ -31,15 +23,22 @@ public static class DbHelper
         return RunSqlChange(sql, null);
     }
 
-    // --- מתודות מוגנות (תומכות בתבנית עם {} ופרמטרים מופרדים) ---
+    // --- מתודות מוגנות ---
+    // תומכות בתבנית עם {}
+    // מקבלות פרמטרים מופרדים
 
-    public static List<T> RunSelect<T>(string selectSql, params object[] args) where T : new()
+    public static List<T> RunSelect<T>(string sql, params object[] args) where T : new()
     {
+        //Console.WriteLine($"The app is running in: {Directory.GetCurrentDirectory()}");
+
         var list = new List<T>();
         using (var connection = new SqliteConnection(ConnectionString))
         {
             connection.Open();
-            using var command = CreateCommand(connection, selectSql, args);
+            connection.DefaultTimeout = 5; // seconds
+            ConfigureSqlite(connection);
+
+            using var command = CreateCommand(connection, sql, args);
             using var reader = command.ExecuteReader();
             while (reader.Read())
             {
@@ -56,6 +55,9 @@ public static class DbHelper
         using (var connection = new SqliteConnection(ConnectionString))
         {
             connection.Open();
+            connection.DefaultTimeout = 5; // seconds
+            ConfigureSqlite(connection);
+
             using var command = CreateCommand(connection, sql, args);
             return command.ExecuteNonQuery();
         }
@@ -63,18 +65,30 @@ public static class DbHelper
 
     // --- לוגיקה פנימית ---
 
+    private static void ConfigureSqlite(SqliteConnection connection)
+    {
+        // משפר קריאה במקביל לכתיבה
+        // מפחית נעילות במסד הנתונים
+        using var pragma = connection.CreateCommand();
+        pragma.CommandText = @"
+        PRAGMA journal_mode=WAL;
+        PRAGMA synchronous=NORMAL;";
+        pragma.ExecuteNonQuery();
+    }
+
     private static SqliteCommand CreateCommand(SqliteConnection connection, string sql, object[] args)
     {
         var command = connection.CreateCommand();
 
-        // אם אין ארגומנטים (args הוא null או ריק), מריצים את המחרוזת כפי שהיא
+        // if no args run the query as is, no sql injection protection
         if (args == null || args.Length == 0)
         {
             command.CommandText = sql;
             return command;
         }
 
-        // אם יש ארגומנטים, מחליפים כל {} בפרמטר @pX להגנה מהזרקות
+        // SQL injection pretected parameterization
+
         for (int i = 0; i < args.Length; i++)
         {
             var paramName = "@p" + i;
@@ -95,10 +109,14 @@ public static class DbHelper
     private static void MapRowToObject<T>(SqliteDataReader reader, T obj)
     {
         var fields = typeof(T).GetFields(BindingFlags.Public | BindingFlags.Instance);
+
         for (int i = 0; i < reader.FieldCount; i++)
         {
             string colName = reader.GetName(i);
-            var field = fields.FirstOrDefault(f => f.Name.Equals(colName, StringComparison.OrdinalIgnoreCase));
+
+            var field = fields.FirstOrDefault(f =>
+                f.Name.Equals(colName, StringComparison.OrdinalIgnoreCase));
+
             if (field != null && !reader.IsDBNull(i))
             {
                 try
@@ -106,7 +124,9 @@ public static class DbHelper
                     Type t = Nullable.GetUnderlyingType(field.FieldType) ?? field.FieldType;
                     field.SetValue(obj, Convert.ChangeType(reader.GetValue(i), t));
                 }
-                catch { }
+                catch
+                {
+                }
             }
         }
     }
